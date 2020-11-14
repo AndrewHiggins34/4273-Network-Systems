@@ -1,0 +1,30 @@
+***************
+
+PA2 Lab Andrew Higgins
+
+Should begin inside the main folder
+Inside UDP Folder:
+	folders: www
+	Makefile
+  httpeechoserv.c
+
+Inside the www Folder:
+  folders:
+    css
+    fancybox
+    files
+    graphics
+    images
+  Individual files:
+    favicon.ico
+    jquery-1.4.3.min.js
+    index.html
+
+Compile the program using "make"
+
+Then execute the program with ./server <portno>
+  ex: ./server 8080
+
+From there go to the browser of your choosing and enter the local host 127.0.0.1:<portno>
+
+The html/text page will display via a thread.

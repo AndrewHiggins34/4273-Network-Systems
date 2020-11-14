@@ -1,0 +1,36 @@
+***************
+
+PA1 Lab Andrew Higgins
+
+Should begin inside the UDP folder
+Inside UDP Folder: 
+	folders: clientSide, serverSide
+	JPEG: 	foo2, foo3
+	Text:	foo1
+
+Beginning with the serverSide directory
+	compile uftp_server.c with: make server
+	follow with ./server <portno>
+		ie: ./server 5000
+clientSide directory
+	compile uftp_client.c with: make client
+	follow with ./client <ip addr> <portno>
+		ie: ./client 192.168.0.35 5000
+	#The ipAddr should be the ip addr of the server
+From there all the client will be prompted with a display 
+screen featuring all of the functions implemented.
+
+These functions include:
+	get [file_name]
+	put [file_name]
+	delete [file_name]
+	ls
+	exit
+
+The server will need to be running for these actions to take place
+files foo2 and foo3 are good for both the get/put functions, but
+foo1 is too large (22kb) and the writeup recommended transfer of 
+2-5kb files. In order to transfer a file of that size the MAXBUFSIZE
+would need to be changed. 
+
+
