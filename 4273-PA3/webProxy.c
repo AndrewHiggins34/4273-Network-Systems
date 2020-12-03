@@ -92,12 +92,36 @@ void webProxy(int connfd)
   sscanf(fullPath, "http://%511[^/\n]", hostname);
   printf("hostname is = %s\n", hostname);
 
+  /* parse and verify the hostname/server */
+  struct hostent *host = gethostbyname(hostname);
+  if (host == NULL) {
+      fprintf(stderr,"ERROR, no such host as %s\n", hostname);
+      sendErrResponse(errorBuf, connfd);
+      exit(0);
+  }
+
+  FILE* bList = fopen("blacklist.txt", "rb");
+  char bLName[1024];
+  while(fgets(bLName, sizeof(bLName), bList)){
+    bLName[strlen(bLName)-1] = '\0';
+    printf("compared hostname: %s with blacklist name: %s\n", hostname, bLName);
+
+    if(strcmp(bLName, hostname) == 0){
+      printf("Hostname was on the blacklist, will not retrieve information. Ending connection.\n");
+      // char* temp = "Hostname was on the blacklist, will not retrieve information. Ending connection.\n";
+      // send(connfd, temp, sizeof(temp), 0);
+      close(connfd);
+      fclose(bList);
+      return;
+    }
+  }
 
   /* support only GET requests */
   if(strcmp(requestType, "GET") != 0)
   {
     printf("Proxy received a request that was not a 'GET' Request, sending 400 Bad Request response\n");
     sendErrResponse(errorBuf, connfd);
+    close(connfd);
   }
   // // /* support only HTTP/1.1 */
   // else if(strcmp(Type, "HTTP/1.1") != 0)
@@ -109,21 +133,13 @@ void webProxy(int connfd)
   //   bzero(errorBuf, ERRBUFSIZE);
   // }
 
-  /* parse and verify the hostname/server */
-  struct hostent *host = gethostbyname(hostname);
-  if (host == NULL) {
-      fprintf(stderr,"ERROR, no such host as %s\n", hostname);
-      sendErrResponse(errorBuf, connfd);
-      exit(0);
-  }
   else{
     /* Forward request to HTTP server */
+    /* Relay data from server to client */
     forwardClientReq(buffer, hostname, connfd);
 
-    /* Relay data from server to client */
   }
-
-
+  fclose(bList);
 }
 
 int forwardClientReq(char* buffer, char* hostname, int clientfd)
