@@ -1,4 +1,4 @@
-#MakeFile for webProxy
+#MakeFile for dfc
 
 CC=g++
 CFLAGS= -g -Wall -Werror

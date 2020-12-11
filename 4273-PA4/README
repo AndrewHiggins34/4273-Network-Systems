@@ -1,0 +1,7 @@
+In order to compile the client, simply run: make
+  to execute run ./client dfc.conf
+In order to compile any of the servers , simply run: Make
+  to execute run ./server <portno>
+    quick note on the portnumber, it should include 10001,10002, 10003, 10004
+
+From there all commands will be executed on the client inside
