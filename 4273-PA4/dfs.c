@@ -12,6 +12,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <dirent.h> // included for 'ls' call and 'readdir'/dirent struct
+
+
 
 #define MAXBUF  8192  /* max text line length */
 #define LISTENQ  1024  /* second argument to listen() */
@@ -77,12 +80,33 @@ void doServerStuff(int connfd)
   switch(value)
   {
     case 1: // "LIST" case
-
+      bzero(buf, MAXBUF);
+      struct dirent *currDirectory;
+      DIR *dirp = opendir(".");
+      if(dirp == NULL)
+        printf("Somehow can't access the current directory");
+      else
+      {
+        int i = 0;
+        printf("---------The following directories are being passed--------\n");
+        while((currDirectory = readdir(dirp)) != NULL)
+        {
+          strcat(buf, currDirectory->d_name);
+          strcat(buf, "\n");
+        }
+          printf("%s\n", buf);
+      }
+      closedir(dirp);
+      free(currDirectory);
+      n = send(connfd, buf, strlen(buf), 0);
       break;
+
     case 2: // "GET case
       break;
+
     case 3: // "PUT" case
       break;
+
     default:
       printf("Server recieved an invalid command, terminating connection");
       exit(0);
