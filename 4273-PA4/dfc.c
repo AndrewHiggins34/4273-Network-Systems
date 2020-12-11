@@ -15,6 +15,7 @@
 
 #define BUFSIZE 8192
 #define LISTENQ 1024
+#define SA struct sockaddr
 
 // some basic helper functions...
 void displayOptions()
@@ -41,13 +42,13 @@ int connect2Server(int port)
     exit(0);
   }
   else{
-    printf("Socket created successfully for port number %d", port);
+    printf("Socket created successfully for port number %d\n", port);
     bzero(&servaddr, sizeof(servaddr));
   }
   // assign IP, PORT
   servaddr.sin_family = AF_INET;
-  servaddr.sin_addr.s_addr = inet_addr("127.0.0.1:%d", port);
-  servaddr.sin_port = htons(PORT);
+  servaddr.sin_addr.s_addr = inet_addr("127.0.0.1:");
+  servaddr.sin_port = htons(port);
 
   // connect the client socket to server socket
   if (connect(sockfd, (SA*)&servaddr, sizeof(servaddr)) != 0) {
@@ -62,6 +63,15 @@ int connect2Server(int port)
 
 int main(int argc, char **argv)
 {
+  if(argc != 2){
+    printf("Incorrect call, Usage: # dfc.conf");
+    exit(0);
+  }
+  displayOptions();
 
-
+  int sockfd[4];
+  int portno[4] = {10001, 10002, 10003, 10004};
+  for(int i=0;i<4;i++){
+    sockfd[i] = connect2Server(portno[i]);
+  }
 }
