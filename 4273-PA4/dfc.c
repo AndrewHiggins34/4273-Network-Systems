@@ -21,8 +21,8 @@
 // some basic helper functions...
 void displayOptions()
 {
-	printf(" User, you are being prompted to type any of the following commands. \n");
-	printf(" GET [file_name]\n PUT [file_name]\n LIST\n exit\n");
+	printf("User, please enter your username. Then you may execute the following commands:\n");
+	printf("GET [file_name]\n PUT [file_name]\n LIST\n exit\n");
 }
 
 char* getUserInput(char* message)
@@ -72,14 +72,19 @@ int main(int argc, char **argv)
     printf("Incorrect call, Usage: # dfc.conf");
     exit(0);
   }
-  /* create connections with the 4 servers */
+  /* display options and read user input */
+  displayOptions();
+  char username[20];
+  scanf("%s",&username);
+
+  /* create connections with the 4 servers & forward username */
   int sockfd[4], n;
   int portno[4] = {10001, 10002, 10003, 10004};
   for(int i=0;i<4;i++){
     sockfd[i] = connect2Server(portno[i]);
+    if((n = send(sockfd[i], username, strlen(username), 0))<0)
+      printf("ERROR in send");
   }
-  /* display options and read user input */
-  displayOptions();
   /* create & zero the buffers */
   char buf[BUFSIZE], command[5], file[FILENAME];
   bzero(buf, BUFSIZE); bzero(command, 5); bzero(file, FILENAME);

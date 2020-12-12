@@ -155,8 +155,7 @@ int main(int argc, char **argv) {
           printf("Unsuccessful copying of file contents into file buffer\n");
 
         else if(sendto(sockfd, transfer_buf, fileSize, 0,
-          (struct sockaddr *)&serveraddr, serverlen) >=0      serverReply();
-)
+          (struct sockaddr *)&serveraddr, serverlen) >=0)
           printf("Successfully sent file: %s to client\n", file_name);
         else
           printf("Error in the transfer of the file to client");

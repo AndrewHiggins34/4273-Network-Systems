@@ -29,6 +29,7 @@ int main(int argc, char **argv)
     int listenfd, *connfdp, port, clientlen=sizeof(struct sockaddr_in);
     struct sockaddr_in clientaddr;
     pthread_t tid;
+    char username[20];
 
     if (argc != 2) {
     	fprintf(stderr, "usage: %s <port>\n", argv[0]);
@@ -36,14 +37,20 @@ int main(int argc, char **argv)
     }
 
     port = atoi(argv[1]);
+    printf("This is the server for port %d speaking...\n", port);
     listenfd = open_listenfd(port);
 
+    fp
+
+    if()
     while (1) {
     	connfdp = malloc(sizeof(int));  // pointer to pass the socket
     	*connfdp = accept(listenfd, (struct sockaddr*)&clientaddr, &clientlen);
     	pthread_create(&tid, NULL, thread, connfdp);
     }
 }
+
+int credentialVerify(char )
 
 /* thread routine */
 void * thread(void * vargp)
@@ -69,22 +76,15 @@ void doServerStuff(int connfd)
   char word1[5];
   char file[MAXFILESIZE];
   sscanf(buf, "%s %s", word1, file);
-  printf("Server recieved the following request: %s, for %s", word1, file);
+  printf("Server recieved the following request: %s, for %s\n", word1, file);
 
-  /*prepare the switch */
-  int value = 0;
-  if(strcmp(word1, "LIST") == 0) value=1;
-  else if (strcmp(word1, "GET") == 0) value=2;
-  else if (strcmp(word1, "PUT") == 0) value=3;
-
-  /* store the dfc.conf usernames/passwords */
+  /* store the dfc.conf usernames/passwords *///////////////////////////////////
   FILE *config = fopen("dfc.conf", "r");  // just giving it read rights for now.
   if(config == NULL){
-    printf("Invalid conf file passed, can't verify passwords, terminating connection");
+    printf("Invalid conf file passed, can't verify passwords, terminating connection\n");
     close(connfd);
     exit(0);
   }
-
   struct userData { // only storing 4 here bc my conf file only has 4 user/passwords
     char username[4][20];
     char password[4][20];
@@ -95,17 +95,23 @@ void doServerStuff(int connfd)
   while (fgets(tempBuf, 161, config) != NULL)
   {
     sscanf(tempBuf, "%s" "%s", user, pass);
-    printf("storing user: %s pass: %s\n", user, pass);
     memcpy(userDB.username[datacnt], user, 20);
     memcpy(userDB.password[datacnt], pass, 20);
-    printf("captured user: %s pass: %s\n", userDB.username[datacnt], userDB.password[datacnt]);
+    // printf("captured user: %s pass: %s\n", userDB.username[datacnt], userDB.password[datacnt]);
     bzero(tempBuf, 40); bzero(user, 20); bzero(pass, 20);
     datacnt++;
   }
+  //////////////////////////////////////////////////////////////////////////////
 
+  /*prepare the switch *////////////////////////////////////////////////////////
+  int value = 0;
+  if(strcmp(word1, "LIST") == 0) value=1;
+  else if (strcmp(word1, "GET") == 0) value=2;
+  else if (strcmp(word1, "PUT") == 0) value=3;
   switch(value)
   {
     case 1: // "LIST" case
+
       bzero(buf, MAXBUF);
       struct dirent *currDirectory;
       DIR *dirp = opendir(".");
@@ -136,10 +142,9 @@ void doServerStuff(int connfd)
     default:
       printf("Server recieved an invalid command, terminating connection");
       exit(0);
-  }
-
-
-}
+  } /* end of switch(value) */
+  //////////////////////////////////////////////////////////////////////////////
+} /* end of doServerStuff */
 
   int open_listenfd(int port)
   {
