@@ -4,4 +4,4 @@ CC=g++
 CFLAGS= -g -Wall -Werror
 
 dfc:	dfc.c
-	gcc dfc.c -pthread -o client
+	gcc dfc.c -pthread -o client -lssl -lcrypto

@@ -40,17 +40,12 @@ int main(int argc, char **argv)
     printf("This is the server for port %d speaking...\n", port);
     listenfd = open_listenfd(port);
 
-    fp
-
-    if()
     while (1) {
     	connfdp = malloc(sizeof(int));  // pointer to pass the socket
     	*connfdp = accept(listenfd, (struct sockaddr*)&clientaddr, &clientlen);
     	pthread_create(&tid, NULL, thread, connfdp);
     }
 }
-
-int credentialVerify(char )
 
 /* thread routine */
 void * thread(void * vargp)
@@ -60,6 +55,39 @@ void * thread(void * vargp)
     free(vargp);
     doServerStuff(connfd);
     return NULL;
+}
+
+int verifyCredential(char* userN, char* passN)
+{
+  /* store the dfc.conf usernames/passwords *///////////////////////////////////
+  FILE *config = fopen("dfc.conf", "r");  // just giving it read rights for now.
+  if(config == NULL){
+    printf("Invalid conf file passed, can't verify passwords, terminating connection\n");
+    exit(0);
+  }
+  struct userData { // only storing 4 here bc my conf file only has 4 user/passwords
+    char username[4][20];
+    char password[4][20];
+  };
+  char tempBuf[40], user[20], pass[20];
+  int datacnt = 0;
+  struct userData userDB;
+  while (fgets(tempBuf, 161, config) != NULL)
+  {
+    printf("checking user: %s pass:%s\n", userN, passN);
+    sscanf(tempBuf, "%s" "%s", user, pass);
+		memcpy(userDB.username[datacnt], user, 20);
+    memcpy(userDB.password[datacnt], pass, 20);
+		printf("captured user: %s pass: %s\n", userDB.username[datacnt], userDB.password[datacnt]);
+
+    if(strcmp(userN, userDB.username[datacnt]) == 0 && strcmp(passN, userDB.password[datacnt]) == 0){
+      printf("Credentials verified\n");
+			return 1;
+		}
+		bzero(tempBuf, 40); bzero(user, 20); bzero(pass, 20);
+		datacnt++;
+	}
+	return -1;
 }
 
 void doServerStuff(int connfd)
@@ -78,29 +106,7 @@ void doServerStuff(int connfd)
   sscanf(buf, "%s %s", word1, file);
   printf("Server recieved the following request: %s, for %s\n", word1, file);
 
-  /* store the dfc.conf usernames/passwords *///////////////////////////////////
-  FILE *config = fopen("dfc.conf", "r");  // just giving it read rights for now.
-  if(config == NULL){
-    printf("Invalid conf file passed, can't verify passwords, terminating connection\n");
-    close(connfd);
-    exit(0);
-  }
-  struct userData { // only storing 4 here bc my conf file only has 4 user/passwords
-    char username[4][20];
-    char password[4][20];
-  };
-  char tempBuf[40], user[20], pass[20];
-  int datacnt = 0;
-  struct userData userDB;
-  while (fgets(tempBuf, 161, config) != NULL)
-  {
-    sscanf(tempBuf, "%s" "%s", user, pass);
-    memcpy(userDB.username[datacnt], user, 20);
-    memcpy(userDB.password[datacnt], pass, 20);
-    // printf("captured user: %s pass: %s\n", userDB.username[datacnt], userDB.password[datacnt]);
-    bzero(tempBuf, 40); bzero(user, 20); bzero(pass, 20);
-    datacnt++;
-  }
+
   //////////////////////////////////////////////////////////////////////////////
 
   /*prepare the switch *////////////////////////////////////////////////////////
@@ -111,6 +117,22 @@ void doServerStuff(int connfd)
   switch(value)
   {
     case 1: // "LIST" case
+      /* Prompt user for username and password */
+      // char msg[60];
+      // msg = "Enter username followed by password, example: user password\n";
+      if((n = send(connfd, "Enter username(enter)\n Then password(enter)\n", 39, 0)) < 0){
+        perror("Message failed to send (LIST)\n");
+        break;
+      }
+      /* parse & verify username and password */
+      bzero(buf, MAXBUF);
+      char userN[20], passN[20];
+      read(connfd, buf, MAXBUF);
+      sscanf(buf, "%s %s",userN, passN);
+      if(verifyCredential(userN, passN) != 1){
+        printf("Invalid credentials\n");
+        break;
+      }
 
       bzero(buf, MAXBUF);
       struct dirent *currDirectory;

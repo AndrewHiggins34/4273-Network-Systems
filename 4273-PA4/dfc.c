@@ -11,19 +11,14 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <errno.h>
+#include <openssl/md5.h>
 
 
 #define BUFSIZE 8192
-#define LISTENQ 1024
 #define FILENAME 50
 #define SA struct sockaddr
 
 // some basic helper functions...
-void displayOptions()
-{
-	printf("User, please enter your username. Then you may execute the following commands:\n");
-	printf("GET [file_name]\n PUT [file_name]\n LIST\n exit\n");
-}
 
 char* getUserInput(char* message)
 {
@@ -72,54 +67,182 @@ int main(int argc, char **argv)
     printf("Incorrect call, Usage: # dfc.conf");
     exit(0);
   }
-  /* display options and read user input */
-  displayOptions();
-  char username[20];
-  scanf("%s",&username);
-
   /* create connections with the 4 servers & forward username */
   int sockfd[4], n;
   int portno[4] = {10001, 10002, 10003, 10004};
-  for(int i=0;i<4;i++){
+  for(int i=0;i<4;i++)
     sockfd[i] = connect2Server(portno[i]);
-    if((n = send(sockfd[i], username, strlen(username), 0))<0)
-      printf("ERROR in send");
-  }
+
+	printf("You may execute the following commands:\nGET [file_name]\n PUT [file_name]\n LIST\n exit\n");
+
   /* create & zero the buffers */
-  char buf[BUFSIZE], command[5], file[FILENAME];
-  bzero(buf, BUFSIZE); bzero(command, 5); bzero(file, FILENAME);
+  char buf[BUFSIZE], servBuf[BUFSIZE], command[5], file[FILENAME], userN[20], passN[20];
+  bzero(buf, BUFSIZE); bzero(servBuf, BUFSIZE), bzero(command, 5); bzero(file, FILENAME);
+	bzero(userN, 20); bzero(passN, 20);
   int serverlen;
   struct sockaddr_in serveraddr;
+
+void forwardCredentials()
+{
+  for(int i = 0;i<4;i++){
+    if((n = send(sockfd[i], command, strlen(command), 0))<0)
+      printf("ERROR in send");
+    /* zero the buf and read the servers response in */
+    bzero(buf, BUFSIZE); bzero(servBuf, BUFSIZE);
+    read(sockfd[i], servBuf, BUFSIZE);
+    printf("Server response:\n %s", servBuf);
+    scanf("%s ", buf);
+  	scanf(" %s", passN);
+  	strcat(buf, " ");
+  	strcat(buf, passN);
+  	send(sockfd[i], buf, strlen(buf), 0);
+  	bzero(buf, BUFSIZE); bzero(servBuf, BUFSIZE);
+  }
+}
 
   while(1){
     getUserInput(buf);
     sscanf(buf, "%s %s", command, file);
-    printf("Stored: %s and file: %s", command, file);
+    printf("Stored: %s and file: %s\n", command, file);
     if(strcmp(command, "LIST") == 0)
     {
+      forwardCredentials();
+      /* Print what the server sends */
       for(int i = 0;i<4;i++){
-        if((n = send(sockfd[i], command, strlen(command), 0))<0)
-          printf("ERROR in send");
-        /* zero the buf and read the servers response in */
-        bzero(buf, BUFSIZE);
-        n = read(sockfd[i], buf, BUFSIZE);
-        /* Print what the server sends */
-        printf("Server directory includes the following documents:\n");
-        printf("%s", buf);
+				read(sockfd[i], servBuf, BUFSIZE);
+        printf("Server directory includes the following documents for server %d:\n", i);
+        printf("%s", servBuf);
         printf("--------------End of list-----------------------\n");
-        bzero(buf, BUFSIZE);
+        bzero(servBuf, BUFSIZE);
       }
-    }else
-    if(strcmp(command, "GET") ==0)
+    }
+    else if(strcmp(command, "GET") ==0)
     {
 
-    }else
-
-    if(strcmp(command, "PUT") == 0)
+    }
+    else if(strcmp(command, "PUT") == 0)
     {
 
-    }else
-    if(strcmp(command, "exit") == 0)
+      FILE* putFile = fopen(file, "rb+");
+      if(putFile==NULL){
+        printf("Cannot find/open filename entered. Try again.");
+        break;
+      }
+      else{
+        /* get the size of the file and store it */
+        /* taken & modified from my uftp code. */
+        bzero(buf, BUFSIZE); // not taking any chances...
+        fseek(putFile, 0, SEEK_END);
+        int n = ftell(putFile);
+        fseek(putFile, 0, SEEK_SET);
+        if(fread(buf, 1, n, putFile) <=0)
+          printf("Unsuccessful copying of file contents into file buffer\n");
+        ////////////////////////////////////////////////////////////////////////
+        /* Get the MD5 of the file */
+        /* Taken from linux man page for md5_init*/
+        /* The following functions may be used if the message is not completely stored in memory: */
+        // unsigned char *MD5(const unsigned char *d, unsigned long n, unsigned char *md);
+        unsigned char *d; unsigned long hashN; unsigned char *md; MD5_CTX md5;
+        unsigned char hashy[MD5_DIGEST_LENGTH];
+        MD5(buf, n, hashy);
+        // printf("hashy = %x\n", hashy);
+
+        /* cast hash to int IOT mod by 4 */
+        unsigned int hashInt;
+        for(int i =0; i<MD5_DIGEST_LENGTH;i++)
+          hashInt += (unsigned int)hashy[i];
+
+          hashInt = hashInt%4;
+
+        /* divide & store the file into 4 parts */
+        int part[4], quarter = n/4;
+        unsigned int qp = quarter+4;
+
+          char DFCBuf[4][qp];
+
+        fseek(putFile, 0, SEEK_SET);
+        for(int i=0;i<4;i++){
+          if(i==0)
+          {
+            fread(DFCBuf[i], 1, quarter ,putFile);
+            strcat(DFCBuf[i], "a");
+          }
+
+          else if(i==1)
+          {
+            fread(DFCBuf[i], 1, quarter ,putFile);
+            strcat(DFCBuf[i], "b");
+          }
+
+          else if(i==2)
+          {
+            fread(DFCBuf[i], 1, quarter ,putFile);
+            strcat(DFCBuf[i], "c");
+          }
+          else
+          {
+            fread(DFCBuf[i], 1, quarter ,putFile);
+            strcat(DFCBuf[i], "d");
+          }
+        }
+        fclose(putFile);
+
+        switch(hashInt)
+        {
+          // x value:0, DFS1 (1,2), DFS2(2,3), DFS3(3,4) DFS4(4,1)
+          case 0:
+              write(sockfd[0], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS1
+              write(sockfd[0], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS1
+              write(sockfd[1], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS2
+              write(sockfd[1], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS2
+              write(sockfd[2], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS3
+              write(sockfd[2], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS3
+              write(sockfd[3], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS4
+              write(sockfd[3], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS4
+            break;
+
+          // x value:1, DFS1 (4,1), DFS2(1,2), DFS3(2,3) DFS4(3,4)
+          case 1:
+            write(sockfd[0], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS1
+            write(sockfd[0], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS1
+            write(sockfd[1], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS2
+            write(sockfd[1], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS2
+            write(sockfd[2], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS3
+            write(sockfd[2], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS3
+            write(sockfd[3], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS4
+            write(sockfd[3], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS4
+            break;
+
+          // x value:2, DFS1 (3,4), DFS2(4,1), DFS3(1,2) DFS4(2,3)
+          case 2:
+            write(sockfd[0], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS1
+            write(sockfd[0], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS1
+            write(sockfd[1], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS2
+            write(sockfd[1], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS2
+            write(sockfd[2], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS3
+            write(sockfd[2], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS3
+            write(sockfd[3], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS4
+            write(sockfd[3], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS4
+            break;
+
+          // x value:2, DFS1 (2,3), DFS2(3,4), DFS3(4,1) DFS4(1,2)
+          case 3:
+            write(sockfd[0], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS1
+            write(sockfd[0], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS1
+            write(sockfd[1], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS2
+            write(sockfd[1], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS2
+            write(sockfd[2], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS3
+            write(sockfd[2], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS3
+            write(sockfd[3], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS4
+            write(sockfd[3], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS4
+            break;
+
+          default:
+            printf("System is VERY broken");
+        }
+      }
+    }
+    else if(strcmp(command, "exit") == 0)
     {
       for(int y=0;y<4;y++){
         close(sockfd[y]);
@@ -131,6 +254,5 @@ int main(int argc, char **argv)
     {
       printf("Command not recognized, please use commands posted in display");
     }
-
   }
 }
