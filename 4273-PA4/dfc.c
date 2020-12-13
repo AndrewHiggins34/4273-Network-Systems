@@ -76,33 +76,35 @@ int main(int argc, char **argv)
 	printf("You may execute the following commands:\nGET [file_name]\n PUT [file_name]\n LIST\n exit\n");
 
   /* create & zero the buffers */
-  char buf[BUFSIZE], servBuf[BUFSIZE], command[5], file[FILENAME], userN[20], passN[20];
+  char buf[BUFSIZE], servBuf[BUFSIZE], command[5], file[FILENAME], initialReq[20], passN[20];
   bzero(buf, BUFSIZE); bzero(servBuf, BUFSIZE), bzero(command, 5); bzero(file, FILENAME);
-	bzero(userN, 20); bzero(passN, 20);
+	bzero(initialReq, 20); bzero(passN, 20);
   int serverlen;
   struct sockaddr_in serveraddr;
 
 void forwardCredentials()
 {
+  printf("Enter username(enter) and password(enter)\n");
+  bzero(buf, BUFSIZE);
+  scanf("%s ", buf);
+  scanf(" %s", passN);
+  strcat(buf, " ");
+  strcat(buf, passN);
   for(int i = 0;i<4;i++){
-    if((n = send(sockfd[i], command, strlen(command), 0))<0)
+    if((n = send(sockfd[i], initialReq, strlen(initialReq), 0))<0)
       printf("ERROR in send");
-    /* zero the buf and read the servers response in */
-    bzero(buf, BUFSIZE); bzero(servBuf, BUFSIZE);
-    read(sockfd[i], servBuf, BUFSIZE);
-    printf("Server response:\n %s", servBuf);
-    scanf("%s ", buf);
-  	scanf(" %s", passN);
-  	strcat(buf, " ");
-  	strcat(buf, passN);
-  	send(sockfd[i], buf, strlen(buf), 0);
-  	bzero(buf, BUFSIZE); bzero(servBuf, BUFSIZE);
   }
+  for(int i = 0;i<4;i++){
+    send(sockfd[i], buf, strlen(buf), 0);
+  }
+    /* zero the buf and read the servers response in */
+  	bzero(buf, BUFSIZE); bzero(initialReq, 20);
 }
 
   while(1){
-    getUserInput(buf);
-    sscanf(buf, "%s %s", command, file);
+    printf("Enter your command and file is necessary\n");
+    getUserInput(initialReq);
+    sscanf(initialReq, "%s %s", command, file);
     printf("Stored: %s and file: %s\n", command, file);
     if(strcmp(command, "LIST") == 0)
     {
@@ -115,6 +117,7 @@ void forwardCredentials()
         printf("--------------End of list-----------------------\n");
         bzero(servBuf, BUFSIZE);
       }
+      bzero(initialReq, 20);
     }
     else if(strcmp(command, "GET") ==0)
     {
@@ -122,10 +125,11 @@ void forwardCredentials()
     }
     else if(strcmp(command, "PUT") == 0)
     {
-
+      forwardCredentials();
       FILE* putFile = fopen(file, "rb+");
       if(putFile==NULL){
         printf("Cannot find/open filename entered. Try again.");
+        bzero(initialReq, 20);
         break;
       }
       else{
@@ -153,12 +157,16 @@ void forwardCredentials()
           hashInt += (unsigned int)hashy[i];
 
           hashInt = hashInt%4;
+          int mod = n%4;
+          printf("hashint = %d\n", hashInt);
+          printf("mod = %d\n", mod);
 
         /* divide & store the file into 4 parts */
         int part[4], quarter = n/4;
-        unsigned int qp = quarter+4;
+        unsigned int qp = quarter+hashInt+1;
+        char DFCBuf[3][quarter-1];
+        char PartDBuff[quarter+hashInt+1]; // get the remainder + 1 included
 
-          char DFCBuf[4][qp];
 
         fseek(putFile, 0, SEEK_SET);
         for(int i=0;i<4;i++){
@@ -166,26 +174,34 @@ void forwardCredentials()
           {
             fread(DFCBuf[i], 1, quarter ,putFile);
             strcat(DFCBuf[i], "a");
+            printf("DFCBuf at %d is: %s\n", (i+1), DFCBuf[i]);
           }
 
           else if(i==1)
           {
-            fread(DFCBuf[i], 1, quarter ,putFile);
+            fread(DFCBuf[i], 1, (quarter-5) ,putFile);
             strcat(DFCBuf[i], "b");
+            printf("DFCBuf at %d is: %s\n", (i+1), DFCBuf[i]);
+
           }
 
           else if(i==2)
           {
             fread(DFCBuf[i], 1, quarter ,putFile);
             strcat(DFCBuf[i], "c");
+            printf("DFCBuf at %d is: %s\n", (i+1), DFCBuf[i]);
+
           }
           else
           {
-            fread(DFCBuf[i], 1, quarter ,putFile);
-            strcat(DFCBuf[i], "d");
+            fread(PartDBuff, 1, qp ,putFile);
+            strcat(PartDBuff, "d");
+            printf("DFCBuf at %d is: %s\n", (i+1), PartDBuff);
+
           }
         }
         fclose(putFile);
+
 
         switch(hashInt)
         {
@@ -196,50 +212,51 @@ void forwardCredentials()
               write(sockfd[1], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS2
               write(sockfd[1], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS2
               write(sockfd[2], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS3
-              write(sockfd[2], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS3
-              write(sockfd[3], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS4
+              write(sockfd[2], PartDBuff, strlen(DFCBuf[0])); // 4->DFS3
+              write(sockfd[3], PartDBuff, strlen(DFCBuf[0])); // 4->DFS4
               write(sockfd[3], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS4
             break;
 
           // x value:1, DFS1 (4,1), DFS2(1,2), DFS3(2,3) DFS4(3,4)
           case 1:
-            write(sockfd[0], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS1
+            write(sockfd[0], PartDBuff, strlen(DFCBuf[0])); // 4->DFS1
             write(sockfd[0], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS1
             write(sockfd[1], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS2
             write(sockfd[1], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS2
             write(sockfd[2], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS3
             write(sockfd[2], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS3
             write(sockfd[3], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS4
-            write(sockfd[3], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS4
-            break;
+            write(sockfd[3], PartDBuff, strlen(DFCBuf[0])); // 4->DFS4
+          break;
 
           // x value:2, DFS1 (3,4), DFS2(4,1), DFS3(1,2) DFS4(2,3)
           case 2:
             write(sockfd[0], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS1
-            write(sockfd[0], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS1
-            write(sockfd[1], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS2
+            write(sockfd[0], PartDBuff, strlen(DFCBuf[0])); // 4->DFS1
+            write(sockfd[1], PartDBuff, strlen(DFCBuf[0])); // 4->DFS2
             write(sockfd[1], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS2
             write(sockfd[2], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS3
             write(sockfd[2], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS3
             write(sockfd[3], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS4
             write(sockfd[3], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS4
-            break;
+          break;
 
           // x value:2, DFS1 (2,3), DFS2(3,4), DFS3(4,1) DFS4(1,2)
           case 3:
             write(sockfd[0], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS1
             write(sockfd[0], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS1
             write(sockfd[1], DFCBuf[2], strlen(DFCBuf[0])); // 3->DFS2
-            write(sockfd[1], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS2
-            write(sockfd[2], DFCBuf[3], strlen(DFCBuf[0])); // 4->DFS3
+            write(sockfd[1], PartDBuff, strlen(DFCBuf[0])); // 4->DFS2
+            write(sockfd[2], PartDBuff, strlen(DFCBuf[0])); // 4->DFS3
             write(sockfd[2], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS3
             write(sockfd[3], DFCBuf[0], strlen(DFCBuf[0])); // 1->DFS4
             write(sockfd[3], DFCBuf[1], strlen(DFCBuf[0])); // 2->DFS4
-            break;
+          break;
 
           default:
             printf("System is VERY broken");
         }
+        bzero(initialReq, 20);
       }
     }
     else if(strcmp(command, "exit") == 0)

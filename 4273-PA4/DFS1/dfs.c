@@ -19,6 +19,8 @@
 #define MAXBUF  8192  /* max text line length */
 #define LISTENQ  1024  /* second argument to listen() */
 #define MAXFILESIZE 40   /* Expected max filesize */
+#define HEAPBUF 32768 // 2^15
+
 
 int open_listenfd(int port);
 void doServerStuff(int connfd);
@@ -29,6 +31,7 @@ int main(int argc, char **argv)
     int listenfd, *connfdp, port, clientlen=sizeof(struct sockaddr_in);
     struct sockaddr_in clientaddr;
     pthread_t tid;
+    char username[20];
 
     if (argc != 2) {
     	fprintf(stderr, "usage: %s <port>\n", argv[0]);
@@ -36,6 +39,7 @@ int main(int argc, char **argv)
     }
 
     port = atoi(argv[1]);
+    printf("This is the server for port %d speaking...\n", port);
     listenfd = open_listenfd(port);
 
     while (1) {
@@ -55,36 +59,14 @@ void * thread(void * vargp)
     return NULL;
 }
 
-void doServerStuff(int connfd)
+int verifyCredential(char* userN, char* passN)
 {
-  size_t n;
-  int fileSize;
-  char buf[MAXBUF]; bzero(buf, MAXBUF);
-
-  /* read the request */
-  n = read(connfd,buf, MAXBUF);
-  printf("server received the following request:\n%s\n",buf);
-
-  /* parse the request */
-  char word1[5];
-  char file[MAXFILESIZE];
-  sscanf(buf, "%s %s", word1, file);
-  printf("Server recieved the following request: %s, for %s", word1, file);
-
-  /*prepare the switch */
-  int value = 0;
-  if(strcmp(word1, "LIST") == 0) value=1;
-  else if (strcmp(word1, "GET") == 0) value=2;
-  else if (strcmp(word1, "PUT") == 0) value=3;
-
-  /* store the dfc.conf usernames/passwords */
+  /* store the dfc.conf usernames/passwords *///////////////////////////////////
   FILE *config = fopen("dfc.conf", "r");  // just giving it read rights for now.
   if(config == NULL){
-    printf("Invalid conf file passed, can't verify passwords, terminating connection");
-    close(connfd);
+    printf("Invalid conf file passed, can't verify passwords, terminating connection\n");
     exit(0);
   }
-
   struct userData { // only storing 4 here bc my conf file only has 4 user/passwords
     char username[4][20];
     char password[4][20];
@@ -94,19 +76,74 @@ void doServerStuff(int connfd)
   struct userData userDB;
   while (fgets(tempBuf, 161, config) != NULL)
   {
+    printf("checking user: %s pass:%s\n", userN, passN);
     sscanf(tempBuf, "%s" "%s", user, pass);
-    printf("storing user: %s pass: %s\n", user, pass);
-    memcpy(userDB.username[datacnt], user, 20);
+		memcpy(userDB.username[datacnt], user, 20);
     memcpy(userDB.password[datacnt], pass, 20);
-    printf("captured user: %s pass: %s\n", userDB.username[datacnt], userDB.password[datacnt]);
-    bzero(tempBuf, 40); bzero(user, 20); bzero(pass, 20);
-    datacnt++;
-  }
+		printf("captured user: %s pass: %s\n", userDB.username[datacnt], userDB.password[datacnt]);
 
+    if(strcmp(userN, userDB.username[datacnt]) == 0 && strcmp(passN, userDB.password[datacnt]) == 0){
+      printf("Credentials verified\n");
+      fclose(config);
+			return 1;
+		}
+		bzero(tempBuf, 40); bzero(user, 20); bzero(pass, 20);
+		datacnt++;
+	}
+  fclose(config);
+	return -1;
+}
+
+void doServerStuff(int connfd)
+{
+  size_t n;
+  int fileSize;
+  char buf[MAXBUF]; bzero(buf, MAXBUF);
+  char buffer[MAXBUF];
+
+  /* read the request */
+  n = read(connfd,buffer, MAXBUF);
+  printf("server received the following request:\n%s\n",buffer);
+
+  /* parse the request */
+  char word1[5];
+  char file[MAXFILESIZE];
+  sscanf(buffer, "%s %s", word1, file);
+  printf("Server recieved the following request: %s, for %s\n", word1, file);
+
+
+  //////////////////////////////////////////////////////////////////////////////
+
+
+int botherUser()
+{
+  // /* Prompt user for username and password */
+  // if((n = send(connfd, "Enter username(enter)\n Then password(enter)\n", 46, 0)) < 0){
+  //   perror("Message failed to send (LIST)\n");
+  //   return -1;
+  // }
+  /* parse & verify username and password */
+  bzero(buf, MAXBUF);
+  char userN[20], passN[20];
+  read(connfd, buf, MAXBUF);
+  sscanf(buf, "%s %s",userN, passN);
+  if(verifyCredential(userN, passN) != 1){
+    printf("Invalid credentials\n");
+    return -1;;
+  }
+  bzero(buf, MAXBUF);
+}
+
+  /*prepare the switch *////////////////////////////////////////////////////////
+  int value = 0;
+  if(strcmp(word1, "LIST") == 0) value=1;
+  else if (strcmp(word1, "GET") == 0) value=2;
+  else if (strcmp(word1, "PUT") == 0) value=3;
   switch(value)
   {
     case 1: // "LIST" case
-      bzero(buf, MAXBUF);
+      if(botherUser() == -1)
+        break;
       struct dirent *currDirectory;
       DIR *dirp = opendir(".");
       if(dirp == NULL)
@@ -128,18 +165,53 @@ void doServerStuff(int connfd)
       break;
 
     case 2: // "GET case
-      break;
+
+        break;
 
     case 3: // "PUT" case
+      if(botherUser() == -1)
+        break;
+        /* read the file into the buffer. */
+        int n1,n2;
+        char c1, c2;  // store the last character
+        int i1, i2; // to find the length of the buffer
+        char* buf4Files1 = malloc(HEAPBUF); bzero(buf4Files1, HEAPBUF);
+        char* buf4Files2 = malloc(HEAPBUF); bzero(buf4Files2, HEAPBUF);
+        n1 = read(connfd, buf4Files1, HEAPBUF);
+        n2 = read(connfd, buf4Files2, HEAPBUF);
+        i1 = strlen(buf4Files1);
+        i2 = strlen(buf4Files2);
+        c1 = buf4Files1[(i1-1)];
+        c2 = buf4Files2[(i2-1)];
+        printf("\n c1 = %c\n", c1);
+        printf("\n c2 = %c\n", c2);
+
+        FILE* file1 = fopen(file, "w+");
+        if(fwrite(buf4Files1, n1, 1, file1) < 0)
+          printf("ERROR1234\n");
+        else
+          printf("File: %s should be successfully uploaded\n", file);
+        strcat(file, "2");
+        FILE* file2 = fopen(file, "w+");
+        if(fwrite(buf4Files1, n2, 1, file2) < 0)
+          printf("ERROR4321\n");
+        else
+          printf("File: %s should be successfully uploaded\n", file);
+          printf("\n\n %s \n\n", buf4Files1);
+          printf("\n\n %s \n\n", buf4Files2);
+
+        fclose(file2);
+        fclose(file1);
+        free(buf4Files1);
+        free(buf4Files2);
       break;
 
     default:
       printf("Server recieved an invalid command, terminating connection");
       exit(0);
-  }
-
-
-}
+  } /* end of switch(value) */
+  //////////////////////////////////////////////////////////////////////////////
+} /* end of doServerStuff */
 
   int open_listenfd(int port)
   {

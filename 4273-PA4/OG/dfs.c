@@ -19,6 +19,8 @@
 #define MAXBUF  8192  /* max text line length */
 #define LISTENQ  1024  /* second argument to listen() */
 #define MAXFILESIZE 40   /* Expected max filesize */
+#define HEAPBUF 32768 // 2^15
+
 
 int open_listenfd(int port);
 void doServerStuff(int connfd);
@@ -82,11 +84,13 @@ int verifyCredential(char* userN, char* passN)
 
     if(strcmp(userN, userDB.username[datacnt]) == 0 && strcmp(passN, userDB.password[datacnt]) == 0){
       printf("Credentials verified\n");
+      fclose(config);
 			return 1;
 		}
 		bzero(tempBuf, 40); bzero(user, 20); bzero(pass, 20);
 		datacnt++;
 	}
+  fclose(config);
 	return -1;
 }
 
@@ -95,19 +99,42 @@ void doServerStuff(int connfd)
   size_t n;
   int fileSize;
   char buf[MAXBUF]; bzero(buf, MAXBUF);
+  char buffer[MAXBUF];
 
   /* read the request */
-  n = read(connfd,buf, MAXBUF);
-  printf("server received the following request:\n%s\n",buf);
+  n = read(connfd,buffer, MAXBUF);
+  printf("server received the following request:\n%s\n",buffer);
 
   /* parse the request */
   char word1[5];
   char file[MAXFILESIZE];
-  sscanf(buf, "%s %s", word1, file);
+  char file2[MAXFILESIZE];
+  sscanf(buffer, "%s %s", word1, file);
+  strcpy(file2, file);
   printf("Server recieved the following request: %s, for %s\n", word1, file);
 
 
   //////////////////////////////////////////////////////////////////////////////
+
+
+int botherUser()
+{
+  // /* Prompt user for username and password */
+  // if((n = send(connfd, "Enter username(enter)\n Then password(enter)\n", 46, 0)) < 0){
+  //   perror("Message failed to send (LIST)\n");
+  //   return -1;
+  // }
+  /* parse & verify username and password */
+  bzero(buf, MAXBUF);
+  char userN[20], passN[20];
+  read(connfd, buf, MAXBUF);
+  sscanf(buf, "%s %s",userN, passN);
+  if(verifyCredential(userN, passN) != 1){
+    printf("Invalid credentials\n");
+    return -1;;
+  }
+  bzero(buf, MAXBUF);
+}
 
   /*prepare the switch *////////////////////////////////////////////////////////
   int value = 0;
@@ -117,24 +144,8 @@ void doServerStuff(int connfd)
   switch(value)
   {
     case 1: // "LIST" case
-      /* Prompt user for username and password */
-      // char msg[60];
-      // msg = "Enter username followed by password, example: user password\n";
-      if((n = send(connfd, "Enter username(enter)\n Then password(enter)\n", 39, 0)) < 0){
-        perror("Message failed to send (LIST)\n");
+      if(botherUser() == -1)
         break;
-      }
-      /* parse & verify username and password */
-      bzero(buf, MAXBUF);
-      char userN[20], passN[20];
-      read(connfd, buf, MAXBUF);
-      sscanf(buf, "%s %s",userN, passN);
-      if(verifyCredential(userN, passN) != 1){
-        printf("Invalid credentials\n");
-        break;
-      }
-
-      bzero(buf, MAXBUF);
       struct dirent *currDirectory;
       DIR *dirp = opendir(".");
       if(dirp == NULL)
@@ -156,9 +167,50 @@ void doServerStuff(int connfd)
       break;
 
     case 2: // "GET case
-      break;
+
+        break;
 
     case 3: // "PUT" case
+      if(botherUser() == -1)
+        break;
+        /* read the file into the buffer. */
+        int n1,n2;  // get the size of the file read int
+        char c1;
+        char c2;  // store the last character
+        int i1, i2; // to find the length of the buffer
+        char* buf4Files1 = malloc(HEAPBUF); bzero(buf4Files1, HEAPBUF);
+        char* buf4Files2 = malloc(HEAPBUF); bzero(buf4Files2, HEAPBUF);
+        n1 = read(connfd, buf4Files1, HEAPBUF);
+        n2 = read(connfd, buf4Files2, HEAPBUF);
+        i1 = strlen(buf4Files1);
+        i2 = strlen(buf4Files2);
+        c1 = buf4Files1[(i1-1)];
+        c2 = buf4Files2[(i2-1)];
+        // printf("\n c1 = %c\n", c1);
+        // printf("\n c2 = %c\n", c2);
+        strncat(file, &c1, 1);
+        strncat(file2, &c2, 1);
+        printf("\n file = %s\n", file);
+        printf("\n file2 = %s\n", file2);
+
+        FILE* file1 = fopen(file, "w+");
+        if(fwrite(buf4Files1, n1, 1, file1) < 0)
+          printf("ERROR1234\n");
+        else
+          printf("File: %s should be successfully uploaded\n", file);
+        strcat(file, "2");
+        FILE* file2 = fopen(file, "w+");
+        if(fwrite(buf4Files1, n2, 1, file2) < 0)
+          printf("ERROR4321\n");
+        else
+          printf("File: %s should be successfully uploaded\n", file);
+          printf("\n\n %s \n\n", buf4Files1);
+          printf("\n\n %s \n\n", buf4Files2);
+
+        fclose(file2);
+        fclose(file1);
+        free(buf4Files1);
+        free(buf4Files2);
       break;
 
     default:
